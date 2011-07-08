@@ -1,0 +1,73 @@
+#! /usr/bin/env python
+"""
+This is an email notifier script that checks your email address 
+every 10 minutes and if there is a new mail it will show a popup.
+Popup also shows sent email counts of pre-sepesified email-addresses.
+"""
+import urllib2
+import xml.dom.minidom
+import re
+import pynotify
+import time
+
+# email addresses in _sources can be regular expressions
+_sources = {
+    "@domain.com$":"DOMAIN",	# Count emails from all @domain.com addresses and show it with name DOMAIN
+    "bob@gmail.com":"Bob",	# Count email from bob@gmail.com and show it with name Bob
+}
+
+_username = "username" # Do not put @gmail.com at the end.
+_password = "password" 
+
+_delay = 600 # in seconds
+
+def _get_unread_msgs(user, passwd):
+    """
+    Get new email xml from gmail for given authantication info
+    """
+    auth_handler = urllib2.HTTPBasicAuthHandler()
+    auth_handler.add_password(
+        realm='New mail feed',
+        uri='https://mail.google.com',
+        user='%s@gmail.com' % user,
+        passwd=passwd
+    )
+    opener = urllib2.build_opener(auth_handler)
+    urllib2.install_opener(opener)
+    feed = urllib2.urlopen('https://mail.google.com/mail/feed/atom')
+    return feed.read()
+
+def _get_message():
+    """
+    Counts email messages and return a message String to show in popup message
+    """
+    xmlString = _get_unread_msgs(_username,_password)
+    dom=xml.dom.minidom.parseString(xmlString);
+    feedNode = dom.childNodes[0]
+    fullcount = int(feedNode.getElementsByTagName('fullcount')[0].childNodes[0] .data)
+    if not fullcount:
+        #msg = "There are no new emails"
+        msg = ""
+    else :
+        #find entries
+        entries = feedNode.getElementsByTagName('entry')
+        #find count of every email
+        countDict = {}
+        for key,val in _sources.items():
+            countDict[val] = len(filter(   (lambda e:re.search(key,e.getElementsByTagName("email")[0].childNodes[0].data)!=None) , entries ) )
+        #create message
+        msg = "%s New mail"%fullcount
+        for key,val in countDict.items():
+            if val:
+                msg += ", %s(%d)"%(key,val)
+    return msg.encode('utf-8')
+
+# main code
+if __name__ == '__main__':
+    while True:
+        msg = _get_message()
+        print msg , 'is msg'
+        if msg:
+            n = pynotify.Notification("You got new mail", msg)
+            n.show()
+        time.sleep(_delay)

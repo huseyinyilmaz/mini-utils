@@ -1,0 +1,2 @@
+mplayer -tv driver=v4l2:width=300 -vo xv tv:// -geometry "95%:95%" -noborder -ontop
+
